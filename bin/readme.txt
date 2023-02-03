@@ -20,9 +20,10 @@ The program and any possible upgrades can be found at www.AngelCode.com. The aut
 
 Changes
 -------------------------------
-1.14a - 2021/04/08
+1.14a - 2023/02/02
 - Fixed bug when invalid char glyph doesn't fit when using auto-fitting.
 - Included both 64bit and 32bit builds in the package.
+- Fixed performance issue in UI when moving mouse over the character grid in ANSI mode.
 
 1.14 - 2021/01/05
 - Fixed crash with large fonts when Windows API incorrectly reported negative width for glyphs.

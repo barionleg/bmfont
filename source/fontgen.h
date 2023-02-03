@@ -1,6 +1,6 @@
 /*
    AngelCode Bitmap Font Generator
-   Copyright (c) 2004-2019 Andreas Jonsson
+   Copyright (c) 2004-2023 Andreas Jonsson
   
    This software is provided 'as-is', without any express or implied 
    warranty. In no event will the authors be held liable for any 
@@ -179,7 +179,7 @@ public:
 	int     Prepare();
 
 	// A helper function for creating the font object
-	HFONT   CreateFont(int fontSize) const;
+	HFONT   GetCachedFont(int fontSize) const;
 
 	// Visualize pages
 	int     GetNumPages();
@@ -274,11 +274,12 @@ protected:
 	int    outlineThickness;
 
 	// Characters
-	int  numCharsSelected;
-	int  numCharsAvailable;
-	bool disabled[maxUnicodeChar+1];
-	bool selected[maxUnicodeChar+1];
-	bool noFit[maxUnicodeChar+1];
+	int   numCharsSelected;
+	int   numCharsAvailable;
+	bool  disabled[maxUnicodeChar+1];
+	bool  selected[maxUnicodeChar+1];
+	bool  noFit[maxUnicodeChar+1];
+	WCHAR ansiToGlyphMap[256];
 	CFontChar *chars[maxUnicodeChar+1];
 	CFontChar *invalidCharGlyph;
 
@@ -297,6 +298,11 @@ protected:
 
 	// Font config
 	string fontConfigFile;
+
+private:
+	// Cached HFONT object for speed
+	mutable HFONT cachedFont;
+	mutable int   cachedFontSize;
 };
 
 #endif

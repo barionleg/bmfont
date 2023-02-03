@@ -1,6 +1,6 @@
 /*
    AngelCode Bitmap Font Generator
-   Copyright (c) 2004-2021 Andreas Jonsson
+   Copyright (c) 2004-2023 Andreas Jonsson
   
    This software is provided 'as-is', without any express or implied 
    warranty. In no event will the authors be held liable for any 
@@ -108,6 +108,8 @@ CFontGen::CFontGen()
 	memset(selected, 0, sizeof(selected));
 	memset(chars, 0, sizeof(chars));
 	invalidCharGlyph = 0;
+
+	cachedFont = NULL;
 }
 
 CFontGen::~CFontGen()
@@ -121,6 +123,9 @@ CFontGen::~CFontGen()
 	ClearIcons();
 
 	ClearIconImages();
+
+	DeleteObject(cachedFont);
+	cachedFont = NULL;
 }
 
 int CFontGen::GetError()
@@ -468,19 +473,27 @@ bool CFontGen::IsBlueInverted() const
 	return invB;
 }
 
-HFONT CFontGen::CreateFont(int FontSize) const
+HFONT CFontGen::GetCachedFont(int FontSize) const
 {
 	if( FontSize == 0 ) FontSize = fontSize*aa;
-	DWORD quality = useSmoothing ? ANTIALIASED_QUALITY : NONANTIALIASED_QUALITY;
-	if( useSmoothing && useClearType )
-		quality = CLEARTYPE_QUALITY;
 
-	// Convert the font name from utf8 to utf16 so we can support fontnames with non-ascii characters
-	TCHAR buf[1024];
-	ConvertUtf8ToTChar(fontName, buf, 1024);
-	HFONT font = ::CreateFont(FontSize, 0, 0, 0, isBold ? FW_BOLD : FW_NORMAL, isItalic ? TRUE : FALSE, 0, 0, charSet, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, quality, DEFAULT_PITCH, buf);
+	if (cachedFont == NULL || cachedFontSize != FontSize)
+	{
+		DeleteObject(cachedFont);
+		cachedFont = NULL;
+		cachedFontSize = FontSize;
 
-	return font;
+		DWORD quality = useSmoothing ? ANTIALIASED_QUALITY : NONANTIALIASED_QUALITY;
+		if (useSmoothing && useClearType)
+			quality = CLEARTYPE_QUALITY;
+
+		// Convert the font name from utf8 to utf16 so we can support fontnames with non-ascii characters
+		TCHAR buf[1024];
+		ConvertUtf8ToTChar(fontName, buf, 1024);
+		cachedFont = ::CreateFont(FontSize, 0, 0, 0, isBold ? FW_BOLD : FW_NORMAL, isItalic ? TRUE : FALSE, 0, 0, charSet, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, quality, DEFAULT_PITCH, buf);
+	}
+
+	return cachedFont;
 }
 
 
@@ -1124,6 +1137,8 @@ void CFontGen::ResetFont()
 {
 	if( fontChanged )
 	{
+		DeleteObject(cachedFont);
+		cachedFont = NULL;
 		memset(disabled, 0, sizeof(disabled));
 		memset(noFit, 0, sizeof(noFit));
 
@@ -1138,7 +1153,7 @@ void CFontGen::DetermineExistingChars()
 {
 	HDC dc = GetDC(0);
 
-	HFONT font = CreateFont(10);
+	HFONT font = GetCachedFont(10);
 	HFONT oldFont = (HFONT)SelectObject(dc, font);
 
 	// TODO: This is taking too long. If it is not possible to optimize significantly, then it is necessary
@@ -1221,6 +1236,7 @@ void CFontGen::DetermineExistingChars()
 			subsets.push_back(set);
 
 			memset(disabled, 0, 256*sizeof(bool));
+			memset(ansiToGlyphMap, 0, 256 * sizeof(WCHAR));
 
 			for( int n = 0; n < 256; n++ )
 			{
@@ -1239,12 +1255,22 @@ void CFontGen::DetermineExistingChars()
 					if( selected[n] ) 
 						numCharsSelected++;
 				}
+
+				// Translate the ANSI char to glyph id
+				// TODO: understand why sometimes GetCharacterPlacement return a different glyph than GetGlyphIndices
+				WCHAR glyphs[2];
+				GCP_RESULTSA result;
+				memset(&result, 0, sizeof(GCP_RESULTSA));
+				result.lStructSize = sizeof(GCP_RESULTSA);
+				result.lpGlyphs = glyphs;
+				result.nGlyphs = 2;
+				GetCharacterPlacementA(dc, buf, 1, 0, &result, 0);
+				ansiToGlyphMap[n] = result.nGlyphs ? glyphs[0] : 0;
 			}
 		}
 	}
 
 	SelectObject(dc, oldFont);
-	DeleteObject(font);
 
 	ReleaseDC(0, dc);
 }
@@ -1270,24 +1296,8 @@ int CFontGen::GetUnicodeGlyph(unsigned int ch) const
 // Returns 0 (the default glyph) if the character isn't found
 int CFontGen::GetNonUnicodeGlyph(unsigned int ch) const
 {
-	// TODO: This needs to be cached, so the font isn't created with every lookup
-
 	// Translate the char to glyph id
-	char str[2] = { (char)ch, '\0' };
-	WCHAR glyphs[2];
-	HDC dc = GetDC(0);
-	HFONT font = CreateFont(16);
-	HFONT oldFont = (HFONT)SelectObject(dc, font);
-	GCP_RESULTSA result;
-	memset(&result, 0, sizeof(GCP_RESULTSA));
-	result.lStructSize = sizeof(GCP_RESULTSA);
-	result.lpGlyphs = glyphs;
-	result.nGlyphs = 2;
-	GetCharacterPlacementA(dc, str, 1, 0, &result, 0);
-	SelectObject(dc, oldFont);
-	DeleteObject(font);
-
-	return result.nGlyphs ? result.lpGlyphs[0] : 0;
+	return ansiToGlyphMap[ch];
 }
 
 // Internal
@@ -1301,7 +1311,7 @@ void CFontGen::DetermineWidthPadding()
 
 	HDC dc = GetDC(0);
 
-	HFONT font = CreateFont(0);
+	HFONT font = GetCachedFont(0);
 	HFONT oldFont = (HFONT)SelectObject(dc, font);
 
 	TEXTMETRIC tm;
@@ -1310,7 +1320,6 @@ void CFontGen::DetermineWidthPadding()
 	paddingFromWidth = int(widthPaddingFactor * float(tm.tmAveCharWidth));
 
 	SelectObject(dc, oldFont);
-	DeleteObject(font);
 
 	ReleaseDC(0, dc);
 }
@@ -1806,7 +1815,7 @@ void CFontGen::InternalGeneratePages()
 	while (isWorking && autofitter.KeepSearching())
 	{
 		// Draw each of the chars into individual images
-		HFONT font = CreateFont(0);
+		HFONT font = GetCachedFont(0);
 		for( int n = 0; n < maxChars; n++ )
 		{
 			if( !disabled[n] && selected[n] )
@@ -1872,7 +1881,6 @@ void CFontGen::InternalGeneratePages()
 
 					status    = 0;
 					isWorking = false;
-					DeleteObject(font);
 
 #ifdef TRACE_GENERATE
 					trace << "Aborted" << endl;
@@ -1931,8 +1939,6 @@ void CFontGen::InternalGeneratePages()
 #endif
 			}
 		}
-
-		DeleteObject(font);
 
 		// Build a list of used characters
 		status = 2;
@@ -2113,7 +2119,7 @@ int CFontGen::SaveFont(const char *szFile)
 	// Create a memory dc
 	HDC dc = CreateCompatibleDC(0);
 
-	HFONT font = CreateFont(0);
+	HFONT font = GetCachedFont(0);
 	HFONT oldFont = (HFONT)SelectObject(dc, font);
 
 	// Determine the size needed for the char
@@ -2551,7 +2557,6 @@ int CFontGen::SaveFont(const char *szFile)
 	fclose(f);
 
 	SelectObject(dc, oldFont);
-	DeleteObject(font);
 
 	DeleteDC(dc);
 
