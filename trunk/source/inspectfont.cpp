@@ -1,6 +1,6 @@
 /*
    AngelCode Bitmap Font Generator
-   Copyright (c) 2017 Andreas Jonsson
+   Copyright (c) 2017-2023 Andreas Jonsson
   
    This software is provided 'as-is', without any express or implied 
    warranty. In no event will the authors be held liable for any 
@@ -200,7 +200,7 @@ void CInspectFont::OnViewGSUB()
 	// Read GSUB table and add to list view
 	// ref: https://www.microsoft.com/typography/otspec/gsub.htm
 	HDC dc = GetDC(NULL);
-	HFONT font = fontGen->CreateFont(20);
+	HFONT font = fontGen->GetCachedFont(20);
 	HFONT oldFont = (HFONT)SelectObject(dc, font);
 
 	vector<BYTE> buffer;
@@ -213,7 +213,6 @@ void CInspectFont::OnViewGSUB()
 		if (size == GDI_ERROR)
 		{
 			SelectObject(dc, oldFont);
-			DeleteObject(font);
 			return;
 		}
 	}
@@ -264,7 +263,6 @@ void CInspectFont::OnViewGSUB()
 	}
 
 	SelectObject(dc, oldFont);
-	DeleteObject(font);
 }
 
 void CInspectFont::OnInitMenuPopup(HMENU menu, int pos, BOOL isWindowMenu)
@@ -276,7 +274,7 @@ void CInspectFont::OnInitMenuPopup(HMENU menu, int pos, BOOL isWindowMenu)
 
 	// Check if KERN, GPOS, GSUB tables are available and disable those that are not
 	HDC dc = GetDC(NULL);
-	HFONT font = fontGen->CreateFont(20);
+	HFONT font = fontGen->GetCachedFont(20);
 	HFONT oldFont = (HFONT)SelectObject(dc, font);
 
 	DWORD KERN = TAG('k', 'e', 'r', 'n');
@@ -290,6 +288,5 @@ void CInspectFont::OnInitMenuPopup(HMENU menu, int pos, BOOL isWindowMenu)
 	EnableMenuItem(menu, ID_VIEW_GSUB, MF_BYCOMMAND | (size != GDI_ERROR ? MF_ENABLED : MF_GRAYED));
 
 	SelectObject(dc, oldFont);
-	DeleteObject(font);
 }
 

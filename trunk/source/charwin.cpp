@@ -1,6 +1,6 @@
 /*
    AngelCode Bitmap Font Generator
-   Copyright (c) 2004-2021 Andreas Jonsson
+   Copyright (c) 2004-2023 Andreas Jonsson
   
    This software is provided 'as-is', without any express or implied 
    warranty. In no event will the authors be held liable for any 
@@ -392,7 +392,7 @@ void CCharWin::Draw()
 	// Determine the size. Make sure it is larger than 0
 	int size = rc.bottom / 16 - 4;
 	if (size < 1) size = 1;
-	HFONT font = fontGen->CreateFont(size);
+	HFONT font = fontGen->GetCachedFont(size);
 	HFONT oldFont = (HFONT)SelectObject(dc, font);
 	SetTextColor(dc, RGB(255,255,255));
 	SetBkColor(dc, RGB(0,0,0));
@@ -406,8 +406,6 @@ void CCharWin::Draw()
 	DrawGlyphs(dc, rc, tm);
 
 	SelectObject(dc, oldFont);
-	DeleteObject(font);
-
 	SelectObject(dc, oldPen);
 	DeleteObject(red);
 	DeleteObject(pen);
