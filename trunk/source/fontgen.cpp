@@ -1166,10 +1166,10 @@ void CFontGen::DetermineExistingChars()
 	{
 		numCharsAvailable = 0;
 		numCharsSelected = 0;
+		ClearSubsets();
 
 		if( useUnicode )
 		{
-			ClearSubsets();
 			memset(disabled, 1, (maxUnicodeChar+1)*sizeof(bool));
 
 			// GetGlyphIndices doesn't support surrogate pairs
